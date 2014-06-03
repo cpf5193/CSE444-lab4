@@ -117,7 +117,6 @@ public class SystemTestUtil {
                 Debug.log("\t" + Utility.listToString(t));
             }
         }
-long startTime = System.currentTimeMillis();
         iterator.open();
         while (iterator.hasNext()) {
         	
@@ -131,8 +130,6 @@ long startTime = System.currentTimeMillis();
             }
         }
         iterator.close();
-long endTime = System.currentTimeMillis();
-            System.out.println(endTime - startTime + "ms");
         if (!copy.isEmpty()) {
             String msg = "expected to find the following tuples:\n";
             final int MAX_TUPLES_OUTPUT = 10;
