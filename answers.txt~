@@ -1,0 +1,19 @@
+Christon Fukuhara
+1126856
+cpf5193@cs.washington.edu
+lab1: answers.txt
+
+1. I chose to represent the tuples in a TupleDesc as an array of TDItems, rather than using separate lists for types and fields. Using separate lists would make it simpler to use constructors and getters for the types and fields, but since some names may be null, I decided that it was more important to use TDItems to make sure the right types and names were associated with each other.
+
+2. I added a toString method in the TDItem inner class of TupleDesc in order to make it easier to print the toString() method of TupleDesc.
+
+3. No missing elements (to my knowledge)
+
+4. I spent about 25 hours on this assignment. Especially difficult parts were:
+- Connecting the iterators for HeapFile and HeapPage
+- Dealing with open()/close()/rewind(), since I didn't know what they were supposed to do 
+- Implementing HeapFile's readPage() -- I couldn't figure out how to use random access and why the offset was needed for a long time
+- Keeping track of whether "size"s were the total page size or the number of tuples that were actually in the page
+
+
+I spent the majority of the time debugging small errors that were hard to track, such as null pointer errors caused by integer rounding, forgetting to multiply bits by 8, and mixing up the total page size and the sum of the sizes of tuples. 
