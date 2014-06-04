@@ -46,17 +46,18 @@ public class IntHistogram {
     	this.MAX = max;
     	this.numValues = 0;
     	this.bucketMins = new HashMap<Integer, Integer>();
+    	this.counts = new HashMap<Integer, ArrayList<Integer>>();
     	
     	int range = MAX - MIN;
     	this.bucketSize = range / BUCKETS;
     	int i;
     	for(i=0; i<BUCKETS-1; i++) {
-    		bucketMins.put(i, i*bucketSize);
+    		bucketMins.put(i, min + i*bucketSize);
     		// Initialize the counts to 0
     		counts.put(i, new ArrayList<Integer>(Collections.nCopies(bucketSize, 0)));
     	}
     	// Fill in the last bucket, may be wider than other buckets
-    	bucketMins.put(i, i*bucketSize);
+    	bucketMins.put(i, min + i*bucketSize);
     	int lastBucketSize = range - (bucketSize*(BUCKETS-1));
     	// Initialize the counts to 0
     	counts.put(i, new ArrayList<Integer>(Collections.nCopies(lastBucketSize, 0)));
@@ -70,11 +71,19 @@ public class IntHistogram {
     	// some code goes here
     	this.numValues++;
 
-    	int bucketNum = v / this.bucketSize;
-    	int bucketSlot = v % this.bucketSize;
+    	int bucketNum;
+    	int bucketSlot;
+    	if (v > bucketMins.get(BUCKETS-1)) {
+    		// v belongs in the last bucket
+    		bucketNum = BUCKETS-1;
+    		bucketSlot = v - (bucketMins.get(BUCKETS-1));
+    	} else {
+    		bucketNum = (v - MIN) / this.bucketSize;
+	    	bucketSlot = (v - MIN) % this.bucketSize;
+    	}	
     	ArrayList<Integer> temp = counts.get(bucketNum);
-    	temp.set(bucketSlot, temp.get(bucketSlot)+1);
-    	counts.put(bucketNum, temp);
+	    temp.set(bucketSlot, temp.get(bucketSlot)+1);
+	    counts.put(bucketNum, temp);
     }
 
     /**
