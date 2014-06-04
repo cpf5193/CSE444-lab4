@@ -1,8 +1,27 @@
 package simpledb;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+
 /** A class to represent a fixed-width histogram over a single integer-based field.
  */
 public class IntHistogram {
+	
+	// Hashtable from bucket number to bucket's lower bound
+	HashMap<Integer, Integer> bucketMins;
+	
+	// Hashtable from bucket number to bucket's upper bound
+	//HashMap<Integer, Integer> bucketMaxes;
+	
+	// Hashtable from bucket number to list of counts of values in the bucket	
+	HashMap<Integer, ArrayList<Integer>> counts;
+	
+	int BUCKETS;  // Number of buckets
+	int MIN;  // Minimum of the histogram
+	int MAX;  // Maximum of the histogram
+	int numValues;  // Total number of elements in the histogram
+	int bucketSize;
 
     /**
      * Create a new IntHistogram.
@@ -22,6 +41,25 @@ public class IntHistogram {
      */
     public IntHistogram(int buckets, int min, int max) {
     	// some code goes here
+    	this.BUCKETS = buckets;
+    	this.MIN = min;
+    	this.MAX = max;
+    	this.numValues = 0;
+    	this.bucketMins = new HashMap<Integer, Integer>();
+    	
+    	int range = MAX - MIN;
+    	this.bucketSize = range / BUCKETS;
+    	int i;
+    	for(i=0; i<BUCKETS-1; i++) {
+    		bucketMins.put(i, i*bucketSize);
+    		// Initialize the counts to 0
+    		counts.put(i, new ArrayList<Integer>(Collections.nCopies(bucketSize, 0)));
+    	}
+    	// Fill in the last bucket, may be wider than other buckets
+    	bucketMins.put(i, i*bucketSize);
+    	int lastBucketSize = range - (bucketSize*(BUCKETS-1));
+    	// Initialize the counts to 0
+    	counts.put(i, new ArrayList<Integer>(Collections.nCopies(lastBucketSize, 0)));
     }
 
     /**
@@ -30,6 +68,13 @@ public class IntHistogram {
      */
     public void addValue(int v) {
     	// some code goes here
+    	this.numValues++;
+
+    	int bucketNum = v / this.bucketSize;
+    	int bucketSlot = v % this.bucketSize;
+    	ArrayList<Integer> temp = counts.get(bucketNum);
+    	temp.set(bucketSlot, temp.get(bucketSlot)+1);
+    	counts.put(bucketNum, temp);
     }
 
     /**
