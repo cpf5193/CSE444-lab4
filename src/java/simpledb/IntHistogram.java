@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 
+import simpledb.Predicate.Op;
+
 /** A class to represent a fixed-width histogram over a single integer-based field.
  */
 public class IntHistogram {
@@ -14,8 +16,8 @@ public class IntHistogram {
 	// Hashtable from bucket number to bucket's upper bound
 	//HashMap<Integer, Integer> bucketMaxes;
 	
-	// Hashtable from bucket number to list of counts of values in the bucket	
-	HashMap<Integer, ArrayList<Integer>> counts;
+	// Hashtable from bucket number to number of elements in the bucket
+	HashMap<Integer, Integer> counts;
 	
 	int BUCKETS;  // Number of buckets
 	int MIN;  // Minimum of the histogram
@@ -46,21 +48,15 @@ public class IntHistogram {
     	this.MAX = max;
     	this.numValues = 0;
     	this.bucketMins = new HashMap<Integer, Integer>();
-    	this.counts = new HashMap<Integer, ArrayList<Integer>>();
+    	this.counts = new HashMap<Integer, Integer>();
     	
     	int range = MAX - MIN;
     	this.bucketSize = range / BUCKETS;
     	int i;
-    	for(i=0; i<BUCKETS-1; i++) {
+    	for(i=0; i<BUCKETS; i++) {
     		bucketMins.put(i, min + i*bucketSize);
-    		// Initialize the counts to 0
-    		counts.put(i, new ArrayList<Integer>(Collections.nCopies(bucketSize, 0)));
+    		counts.put(i, 0);
     	}
-    	// Fill in the last bucket, may be wider than other buckets
-    	bucketMins.put(i, min + i*bucketSize);
-    	int lastBucketSize = range - (bucketSize*(BUCKETS-1));
-    	// Initialize the counts to 0
-    	counts.put(i, new ArrayList<Integer>(Collections.nCopies(lastBucketSize, 0)));
     }
 
     /**
@@ -71,19 +67,30 @@ public class IntHistogram {
     	// some code goes here
     	this.numValues++;
 
-    	int bucketNum;
-    	int bucketSlot;
+    	int bucketNum = findBucket(v);
+	    counts.put(bucketNum, counts.get(bucketNum)+1);
+    }
+    
+    /*
+     * Finds the bucket for the given value
+     */
+    private int findBucket(int v) {
     	if (v > bucketMins.get(BUCKETS-1)) {
-    		// v belongs in the last bucket
-    		bucketNum = BUCKETS-1;
-    		bucketSlot = v - (bucketMins.get(BUCKETS-1));
+    		return BUCKETS-1;
     	} else {
-    		bucketNum = (v - MIN) / this.bucketSize;
-	    	bucketSlot = (v - MIN) % this.bucketSize;
-    	}	
-    	ArrayList<Integer> temp = counts.get(bucketNum);
-	    temp.set(bucketSlot, temp.get(bucketSlot)+1);
-	    counts.put(bucketNum, temp);
+    		return (v - MIN) / this.bucketSize;
+    	}
+    }
+    
+    /*
+     * Finds the number of values that the given bucket holds
+     */
+    private int findBucketWidth(int bucket) {
+    	if (bucket == BUCKETS-1) {
+    		return (MAX-MIN) - (BUCKETS-1) * bucketSize;
+    	} else {
+    		return bucketSize;
+    	}
     }
 
     /**
@@ -97,9 +104,60 @@ public class IntHistogram {
      * @return Predicted selectivity of this particular operator and value
      */
     public double estimateSelectivity(Predicate.Op op, int v) {
-
-    	// some code goes here
+    	String opname = op.toString();
+    	if (opname.equals("LIKE") || opname.equals("=")) {
+    		return estimateEq(v);
+    	} else if (opname.equals("<")) {
+    		return estimateLT(v);
+    	} else if (opname.equals(">")) {
+    		return estimateGT(v);
+    	} else if (opname.equals("<=")) {
+    		return 1 - estimateGT(v);
+    	} else if (opname.equals(">=")) {
+    		return 1 - estimateLT(v);
+    	} else if (opname.equals("<>")) {
+    		return 1 - estimateEq(v);
+    	}
         return -1.0;
+    }
+    
+    private double estimateEq(int v) {
+    	int bucket = findBucket(v);
+    	int height = counts.get(findBucket(v));
+    	int width = findBucketWidth(bucket);
+    	return 1.0 * height / width / numValues;
+    } 
+    
+    private double estimateLT(int v) {
+    	
+    	// Find the selectivity contribution of v's bucket
+    	int bucket = findBucket(v);
+    	int height = counts.get(findBucket(v));
+    	int width = findBucketWidth(bucket);
+    	int rightBound;
+    	if (bucket == BUCKETS-1) {
+    		rightBound = MAX;
+    	} else {
+    		rightBound = bucketMins.get(bucket+1) - 1;
+    	}
+    	double bucketPart = 1.0 * (rightBound - v) / width;
+    	double bucketFrac = 1.0 * height / numValues;
+    	double vBucketSelectivity = bucketPart * bucketFrac;
+    	
+    	// Calculate the other buckets' selectivity contribution
+    	double othersSelectivity = 0.0;
+    	int curHeight;
+    	for(int i=bucket; i<BUCKETS; i++) {
+    		curHeight = counts.get(findBucket(v));
+    		othersSelectivity += (curHeight / numValues);
+    	}
+    	return vBucketSelectivity + othersSelectivity;
+    }
+    
+    private double estimateGT(int v) {
+    	double ltestimate = estimateLT(v);
+    	double eqestimate = estimateEq(v);
+    	return 1 - (ltestimate + eqestimate);
     }
     
     /**
