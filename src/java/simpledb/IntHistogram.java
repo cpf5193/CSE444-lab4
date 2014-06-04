@@ -43,7 +43,6 @@ public class IntHistogram {
      */
     public IntHistogram(int buckets, int min, int max) {
     	// some code goes here
-    	this.BUCKETS = buckets;
     	this.MIN = min;
     	this.MAX = max;
     	this.numValues = 0;
@@ -51,6 +50,9 @@ public class IntHistogram {
     	this.counts = new HashMap<Integer, Integer>();
     	
     	int range = MAX - MIN;
+    	if (buckets > (range))
+    		BUCKETS = range;
+    	else BUCKETS = buckets;
     	this.bucketSize = range / BUCKETS;
     	int i;
     	for(i=0; i<BUCKETS; i++) {
@@ -72,13 +74,15 @@ public class IntHistogram {
     }
     
     /*
-     * Finds the bucket for the given value
+     * Finds the bucket for the given value. If none found, returns -1
      */
     private int findBucket(int v) {
-    	if (v > bucketMins.get(BUCKETS-1)) {
+    	if (v > MAX || v < MIN) {
+    		return -1;
+    	} else if (v > bucketMins.get(BUCKETS-1)) {
     		return BUCKETS-1;
     	} else {
-    		return (v - MIN) / this.bucketSize;
+    		return (v - MIN) / bucketSize;
     	}
     }
     
@@ -123,6 +127,8 @@ public class IntHistogram {
     
     private double estimateEq(int v) {
     	int bucket = findBucket(v);
+    	if (bucket == -1)
+    		return 0.0;
     	int height = counts.get(findBucket(v));
     	int width = findBucketWidth(bucket);
     	return 1.0 * height / width / numValues;
@@ -132,24 +138,27 @@ public class IntHistogram {
     	
     	// Find the selectivity contribution of v's bucket
     	int bucket = findBucket(v);
+    	if (bucket == -1) {
+    		if (v < MIN)
+    			return 0.0;
+    		if (v > MAX)
+    			return 1.0;
+    		throw new IllegalStateException("Could not find" +
+    				" a bucket for " + v);
+    	}
     	int height = counts.get(findBucket(v));
     	int width = findBucketWidth(bucket);
-    	int rightBound;
-    	if (bucket == BUCKETS-1) {
-    		rightBound = MAX;
-    	} else {
-    		rightBound = bucketMins.get(bucket+1) - 1;
-    	}
-    	double bucketPart = 1.0 * (rightBound - v) / width;
+    	int leftBound = bucketMins.get(bucket);
+    	double bucketPart = 1.0 * (leftBound - v) / width;
     	double bucketFrac = 1.0 * height / numValues;
     	double vBucketSelectivity = bucketPart * bucketFrac;
     	
     	// Calculate the other buckets' selectivity contribution
     	double othersSelectivity = 0.0;
     	int curHeight;
-    	for(int i=bucket; i<BUCKETS; i++) {
-    		curHeight = counts.get(findBucket(v));
-    		othersSelectivity += (curHeight / numValues);
+    	for(int i=0; i<bucket; i++) {
+    		curHeight = counts.get(i);
+    		othersSelectivity += (1.0 * curHeight / numValues);
     	}
     	return vBucketSelectivity + othersSelectivity;
     }
