@@ -178,7 +178,22 @@ public class IntHistogram {
      * @return A string describing this histogram, for debugging purposes
      */
     public String toString() {
+    	String toOutput = "{";
+    	int bucketMin;
+    	int bucketMax;
+    	for(int i=0; i<BUCKETS; i++) {
+    		bucketMin = bucketMins.get(i);
+    		if (i == BUCKETS-1) {
+    			bucketMax = MAX;
+    		} else {
+    			bucketMax = bucketMins.get(i+1)-1;
+    		}
+    		toOutput += ("Bucket " + i + " (" + bucketMin + " - ");
+    		toOutput += (bucketMax + "): " + counts.get(i) + "\n");
+    		
+    	}
+    	toOutput += ("}\n");
         // some code goes here
-        return null;
+        return toOutput;
     }
 }
