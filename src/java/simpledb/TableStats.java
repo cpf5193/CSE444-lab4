@@ -107,6 +107,7 @@ public class TableStats {
         // some code goes here
     	this.tid = new TransactionId();
     	createHistograms(tableid);
+    	populateHistograms(tableid);
     	HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(tableid);
     	this.ioCost = hf.numPages() * ioCostPerPage;
     }
@@ -119,11 +120,12 @@ public class TableStats {
      * @param tableid the id of the table to create histograms for
      */
     private void createHistograms(int tableid) {
-    	DbFile table = Database.getCatalog().getDatabaseFile(tableid);
+    	HeapFile table = (HeapFile)Database.getCatalog().getDatabaseFile(tableid);
     	// Fetch the TupleDesc and set up the structure to hold the stats
     	TupleDesc desc = table.getTupleDesc();
     	int tupleSize = desc.numFields();
     	attrRanges = new ArrayList<AttrRange>(tupleSize);
+    	histograms = new ArrayList<Object>(tupleSize);
     	
     	// Initialize the stats for each attribute
     	for(int i=0; i<desc.numFields(); i++) {
@@ -132,34 +134,25 @@ public class TableStats {
     					                    Integer.MIN_VALUE));
     	}
     	
-    	// Get an iterator over the table's tuples
     	DbFileIterator iter = table.iterator(tid);
+    	try {
+			iter.open();
+		} catch (DbException | TransactionAbortedException e1) {
+			e1.printStackTrace();
+		}
     	
     	// Set the min/max for each attribute
     	try {
 			while(iter.hasNext()) {
 				Tuple tup = iter.next();
-				for(int i=0; i<tupleSize; i++) {
-					Type fType = desc.getFieldType(i);
-					if(fType == Type.INT_TYPE) {
-						IntHistogram hist = (IntHistogram) histograms.get(i);
-						int value = (int) tup.getField(i).hashCode();
-						AttrRange range = attrRanges.get(i);
-						if(value < range.min)
-							range.min = value;
-						if(value > range.max)
-							range.max = value;
-						attrRanges.set(i, range);
-						hist.addValue(value);
-						histograms.set(i, hist);
-					} else {
-						StringHistogram hist = (StringHistogram) 
-								   histograms.get(i);
-						String value = (String) tup.getField(i).toString();
-						// Don't need to compute min and max over strings
-						hist.addValue(value);
-						histograms.set(i, value);
-					}
+				for(int i=0; i<tupleSize; i++) {;
+					int intValue = (int) tup.getField(i).hashCode();
+					AttrRange range = attrRanges.get(i);
+					if(intValue < range.min)
+						range.min = intValue;
+					if(intValue > range.max)
+						range.max = intValue;
+					attrRanges.set(i, range);
 				}
 			}
 		} catch (NoSuchElementException | DbException
@@ -179,7 +172,53 @@ public class TableStats {
     	}
     }
     
-    
+    /*
+         * Scans through the tuples of the TableStats's tuples to populate the histograms,
+         * modifying the state of the histograms structure
+         */
+        private void populateHistograms(int tableid) {
+        	HeapFile table = (HeapFile)Database.getCatalog().getDatabaseFile(tableid);
+        	
+        	// Fetch the TupleDesc and set up the structure to hold the stats
+        	TupleDesc desc = table.getTupleDesc();
+        	int tupleSize = desc.numFields();
+        	
+        	// Get an iterator over the table's tuples
+        	DbFileIterator iter = table.iterator(tid);
+        	try {
+				iter.open();
+			} catch (DbException | TransactionAbortedException e1) {
+				e1.printStackTrace();
+			}
+        	
+        	// Add the values to the histograms
+        	try {
+    			while(iter.hasNext()) {
+    				Tuple tup = iter.next();
+    				for(int i=0; i<tupleSize; i++) {
+    					Type fType = tup.getField(i).getType();
+    					if(fType == Type.INT_TYPE) {
+    						IntHistogram hist = (IntHistogram) histograms.get(i);
+    						int value = (int) tup.getField(i).hashCode();
+    						hist.addValue(value);
+    						histograms.set(i, hist);
+    					} else {
+    						StringHistogram hist = (StringHistogram) 
+    											   histograms.get(i);
+    						String value = (String) tup.getField(i).toString();
+    						hist.addValue(value);
+    						histograms.set(i, value);
+    					}
+    				}
+    				
+    			}
+    		} catch (NoSuchElementException | DbException
+    				| TransactionAbortedException e) {
+    			System.out.println("Failed to add values to histogram from table " +
+    							    "in populateHistograms " + tableid);
+    			e.printStackTrace();
+    		}
+        }
     /**
      * Estimates the cost of sequentially scanning the file, given that the cost
      * to read a page is costPerPageIO. You can assume that there are no seeks
@@ -207,8 +246,8 @@ public class TableStats {
      */
     public int estimateTableCardinality(double selectivityFactor) {
         // some code goes here
-    	int totalSize = totalTuples();
-    	return (int)(totalSize * selectivityFactor);
+    	int size = totalTuples() / histograms.size();
+    	return (int)(size * selectivityFactor);
     }
 
     /**
