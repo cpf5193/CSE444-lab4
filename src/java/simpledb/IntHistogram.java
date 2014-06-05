@@ -1,10 +1,6 @@
 package simpledb;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
-
-import simpledb.Predicate.Op;
 
 /** A class to represent a fixed-width histogram over a single integer-based field.
  */

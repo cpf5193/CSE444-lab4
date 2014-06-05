@@ -246,8 +246,7 @@ public class TableStats {
      */
     public int estimateTableCardinality(double selectivityFactor) {
         // some code goes here
-    	int size = totalTuples() / histograms.size();
-    	return (int)(size * selectivityFactor);
+    	return (int)(totalTuples() * selectivityFactor);
     }
 
     /**
@@ -294,18 +293,19 @@ public class TableStats {
      * return the total number of tuples in this table
      * */
     public int totalTuples() {
-    	int totalSize = 0;
-    	for(int i=0; i<histograms.size(); i++) {
-    		Object o = histograms.get(i);
+    	if(histograms.size() == 0) {
+    		return 0;
+    	} else {
+    		// All histograms should have the same number of tuples, just use
+    		// the first one to retrieve # of tuples
+    		Object o = histograms.get(0);
     		if(o instanceof IntHistogram) {
     			IntHistogram hist = (IntHistogram) o;
-    			totalSize += hist.getNumValues();
+    			return hist.getNumValues();
     		} else {
     			StringHistogram hist = (StringHistogram) o;
-    			totalSize += hist.getNumValues();
+    			return hist.getNumValues();
     		}
     	}
-    	return totalSize;
     }
-
 }

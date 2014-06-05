@@ -5,6 +5,8 @@ import java.util.*;
 import javax.swing.*;
 import javax.swing.tree.*;
 
+import simpledb.Predicate.Op;
+
 /**
  * The JoinOptimizer class is responsible for ordering a series of joins
  * optimally, and for selecting the best instantiation of a join for a given
@@ -80,7 +82,7 @@ public class JoinOptimizer {
      * The cost of the join should be calculated based on the join algorithm (or
      * algorithms) that you implemented for Lab 2. It should be a function of
      * the amount of data that must be read over the course of the query, as
-     * well as the number of CPU opertions performed by your join. Assume that
+     * well as the number of CPU operations performed by your join. Assume that
      * the cost of a single predicate application is roughly 1.
      * 
      * 
@@ -111,7 +113,11 @@ public class JoinOptimizer {
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic
             // nested-loops join.
-            return -1.0;
+        	if (j.p.equals(Op.EQUALS)){
+        		return cost1 + cost2 + card1 + card2;
+        	} else {
+        		return cost1 + card1 * cost2 + card1 * card2;
+        	}
         }
     }
 
@@ -155,9 +161,37 @@ public class JoinOptimizer {
             String field2PureName, int card1, int card2, boolean t1pkey,
             boolean t2pkey, Map<String, TableStats> stats,
             Map<String, Integer> tableAliasToId) {
-        int card = 1;
+        int card;
         // some code goes here
+        if(joinOp == Op.EQUALS || joinOp == Op.LIKE) {
+        	card = estimateJoinEquals(joinOp,
+                    table1Alias, table2Alias, field1PureName,
+                    field2PureName, card1, card2, t1pkey, t2pkey,
+                    stats, tableAliasToId);
+        } else if (joinOp == Op.NOT_EQUALS) {  // Join predicate is !=
+        	card = 1 - estimateJoinEquals(joinOp,
+                    table1Alias, table2Alias, field1PureName,
+                    field2PureName, card1, card2, t1pkey, t2pkey,
+                    stats, tableAliasToId);
+        } else {  // Join predicate is a range, return 30% of cross product
+        	card = (int) (card1 * card2 * 0.3);
+        }
         return card <= 0 ? 1 : card;
+    }
+    
+    private static int estimateJoinEquals(Predicate.Op joinOp,
+            String table1Alias, String table2Alias, String field1PureName,
+            String field2PureName, int card1, int card2, boolean t1pkey,
+            boolean t2pkey, Map<String, TableStats> stats,
+            Map<String, Integer> tableAliasToId) {
+    	if (t1pkey) {
+    		return card2;
+    	} else if (t2pkey) {
+    		return card1;
+    	} else {
+    		// Join involves no primary key, return max table size
+    		return Math.max(card1, card2);
+    	}
     }
 
     /**
