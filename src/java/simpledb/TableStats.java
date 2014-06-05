@@ -82,6 +82,8 @@ public class TableStats {
     private ArrayList<AttrRange> attrRanges;
     private ArrayList<Object> histograms;
     private TransactionId tid;
+    private int ioCost;
+    
 
     /**
      * Create a new TableStats object, that keeps track of statistics on each
@@ -105,13 +107,15 @@ public class TableStats {
         // some code goes here
     	this.tid = new TransactionId();
     	createHistograms(tableid);
-    	populateHistograms(tableid);
+    	HeapFile hf = (HeapFile)Database.getCatalog().getDatabaseFile(tableid);
+    	this.ioCost = hf.numPages() * ioCostPerPage;
     }
     
     /*
      * Helper method for the constructor that scans through the tuples for a
      * given table, computing the min and max for each attribute of the table
-     * and creating a histogram for each, adding to the 'histograms' structure
+     * and creating a histogram for each, populating the histogram with the 
+     * values of the tuples, and adding the histogram to the 'histograms' structure
      * @param tableid the id of the table to create histograms for
      */
     private void createHistograms(int tableid) {
@@ -135,15 +139,27 @@ public class TableStats {
     	try {
 			while(iter.hasNext()) {
 				Tuple tup = iter.next();
-				int intValue;
 				for(int i=0; i<tupleSize; i++) {
-					intValue = tup.getField(i).hashCode();
-					AttrRange range = attrRanges.get(i);
-					if(intValue < range.min)
-						range.min = intValue;
-					if(intValue > range.max)
-						range.max = intValue;
-					attrRanges.set(i, range);
+					Type fType = desc.getFieldType(i);
+					if(fType == Type.INT_TYPE) {
+						IntHistogram hist = (IntHistogram) histograms.get(i);
+						int value = (int) tup.getField(i).hashCode();
+						AttrRange range = attrRanges.get(i);
+						if(value < range.min)
+							range.min = value;
+						if(value > range.max)
+							range.max = value;
+						attrRanges.set(i, range);
+						hist.addValue(value);
+						histograms.set(i, hist);
+					} else {
+						StringHistogram hist = (StringHistogram) 
+								   histograms.get(i);
+						String value = (String) tup.getField(i).toString();
+						// Don't need to compute min and max over strings
+						hist.addValue(value);
+						histograms.set(i, value);
+					}
 				}
 			}
 		} catch (NoSuchElementException | DbException
@@ -163,48 +179,6 @@ public class TableStats {
     	}
     }
     
-    /*
-     * Scans through the tuples of the TableStats's tuples to populate the histograms,
-     * modifying the state of the histograms structure
-     */
-    private void populateHistograms(int tableid) {
-    	DbFile table = Database.getCatalog().getDatabaseFile(tableid);
-    	
-    	// Fetch the TupleDesc and set up the structure to hold the stats
-    	TupleDesc desc = table.getTupleDesc();
-    	int tupleSize = desc.numFields();
-    	
-    	// Get an iterator over the table's tuples
-    	DbFileIterator iter = table.iterator(tid);
-    	
-    	// Add the values to the histograms
-    	try {
-			while(iter.hasNext()) {
-				Tuple tup = iter.next();
-				for(int i=0; i<tupleSize; i++) {
-					Type fType = tup.getField(i).getType();
-					if(fType == Type.INT_TYPE) {
-						IntHistogram hist = (IntHistogram) histograms.get(i);
-						int value = (int) tup.getField(i).hashCode();
-						hist.addValue(value);
-						histograms.set(i, hist);
-					} else {
-						StringHistogram hist = (StringHistogram) 
-											   histograms.get(i);
-						String value = (String) tup.getField(i).toString();
-						hist.addValue(value);
-						histograms.set(i, value);
-					}
-				}
-				
-			}
-		} catch (NoSuchElementException | DbException
-				| TransactionAbortedException e) {
-			System.out.println("Failed to add values to histogram from table "
-							   + "in populateHistograms " + tableid);
-			e.printStackTrace();
-		}
-    }
     
     /**
      * Estimates the cost of sequentially scanning the file, given that the cost
@@ -219,8 +193,7 @@ public class TableStats {
      * @return The estimated cost of scanning the table.
      */
     public double estimateScanCost() {
-        // some code goes here
-        return 0;
+    	return ioCost;
     }
 
     /**
@@ -234,7 +207,8 @@ public class TableStats {
      */
     public int estimateTableCardinality(double selectivityFactor) {
         // some code goes here
-        return 0;
+    	int totalSize = totalTuples();
+    	return (int)(totalSize * selectivityFactor);
     }
 
     /**
@@ -267,15 +241,32 @@ public class TableStats {
      */
     public double estimateSelectivity(int field, Predicate.Op op, Field constant) {
         // some code goes here
-        return 1.0;
+    	Type cType = constant.getType();
+    	if (cType == Type.INT_TYPE) {
+    		IntHistogram hist = (IntHistogram)histograms.get(field);
+    		return hist.estimateSelectivity(op, constant.hashCode());
+    	} else {
+    		StringHistogram hist = (StringHistogram) histograms.get(field);
+    		return hist.estimateSelectivity(op, constant.toString());
+    	}
     }
 
     /**
      * return the total number of tuples in this table
      * */
     public int totalTuples() {
-        // some code goes here
-        return 0;
+    	int totalSize = 0;
+    	for(int i=0; i<histograms.size(); i++) {
+    		Object o = histograms.get(i);
+    		if(o instanceof IntHistogram) {
+    			IntHistogram hist = (IntHistogram) o;
+    			totalSize += hist.getNumValues();
+    		} else {
+    			StringHistogram hist = (StringHistogram) o;
+    			totalSize += hist.getNumValues();
+    		}
+    	}
+    	return totalSize;
     }
 
 }
