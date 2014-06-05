@@ -64,6 +64,13 @@ public class StringHistogram {
         int val = stringToInt(s);
         hist.addValue(val);
     }
+    
+    /**
+     * @return the total number of values in the histogram
+     **/
+    public int getNumValues() {
+    	return hist.getNumValues();
+    }
 
     /**
      * Estimate the selectivity (as a double between 0 and 1) of the specified

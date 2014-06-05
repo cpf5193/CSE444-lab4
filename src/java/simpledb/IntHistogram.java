@@ -19,11 +19,11 @@ public class IntHistogram {
 	// Hashtable from bucket number to number of elements in the bucket
 	HashMap<Integer, Integer> counts;
 	
-	int BUCKETS;  // Number of buckets
-	int MIN;  // Minimum of the histogram
-	int MAX;  // Maximum of the histogram
-	int numValues;  // Total number of elements in the histogram
-	int bucketSize;
+	private int BUCKETS;  // Number of buckets
+	private int MIN;  // Minimum of the histogram
+	private int MAX;  // Maximum of the histogram
+	private int numValues;  // Total number of elements in the histogram
+	private int bucketSize;
 
     /**
      * Create a new IntHistogram.
@@ -61,6 +61,13 @@ public class IntHistogram {
     	}
     }
 
+    /**
+     * @return the total number of values in the histogram
+     **/
+    public int getNumValues() {
+    	return numValues;
+    }
+    
     /**
      * Add a value to the set of values that you are keeping a histogram of.
      * @param v Value to add to the histogram
