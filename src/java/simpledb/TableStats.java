@@ -1,8 +1,10 @@
 package simpledb;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -13,6 +15,18 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class TableStats {
 
+	private class AttrRange {
+		public Type type;
+		public int min;
+		public int max;
+		
+		AttrRange(Type type, int min, int max) {
+			this.type = type;
+			this.min = min;
+			this.max = max;
+		}
+	}
+	
     private static final ConcurrentHashMap<String, TableStats> statsMap = new ConcurrentHashMap<String, TableStats>();
 
     static final int IOCOSTPERPAGE = 1000;
@@ -65,6 +79,9 @@ public class TableStats {
      * histograms.
      */
     static final int NUM_HIST_BINS = 100;
+    private ArrayList<AttrRange> attrRanges;
+    private ArrayList<Object> histograms;
+    private TransactionId tid;
 
     /**
      * Create a new TableStats object, that keeps track of statistics on each
@@ -84,9 +101,111 @@ public class TableStats {
         // You should try to do this reasonably efficiently, but you don't
         // necessarily have to (for example) do everything
         // in a single scan of the table.
-        // some code goes here
-    }
 
+        // some code goes here
+    	this.tid = new TransactionId();
+    	createHistograms(tableid);
+    	populateHistograms(tableid);
+    }
+    
+    /*
+     * Helper method for the constructor that scans through the tuples for a
+     * given table, computing the min and max for each attribute of the table
+     * and creating a histogram for each, adding to the 'histograms' structure
+     * @param tableid the id of the table to create histograms for
+     */
+    private void createHistograms(int tableid) {
+    	DbFile table = Database.getCatalog().getDatabaseFile(tableid);
+    	// Fetch the TupleDesc and set up the structure to hold the stats
+    	TupleDesc desc = table.getTupleDesc();
+    	int tupleSize = desc.numFields();
+    	attrRanges = new ArrayList<AttrRange>(tupleSize);
+    	
+    	// Initialize the stats for each attribute
+    	for(int i=0; i<desc.numFields(); i++) {
+    		attrRanges.add(i, new AttrRange(desc.getFieldType(i),
+    										Integer.MAX_VALUE,
+    					                    Integer.MIN_VALUE));
+    	}
+    	
+    	// Get an iterator over the table's tuples
+    	DbFileIterator iter = table.iterator(tid);
+    	
+    	// Set the min/max for each attribute
+    	try {
+			while(iter.hasNext()) {
+				Tuple tup = iter.next();
+				int intValue;
+				for(int i=0; i<tupleSize; i++) {
+					intValue = tup.getField(i).hashCode();
+					AttrRange range = attrRanges.get(i);
+					if(intValue < range.min)
+						range.min = intValue;
+					if(intValue > range.max)
+						range.max = intValue;
+					attrRanges.set(i, range);
+				}
+			}
+		} catch (NoSuchElementException | DbException
+				| TransactionAbortedException e) {
+			System.out.println("Failed to get next tuple from table" +
+					           " in createHistograms" + tableid);
+			e.printStackTrace();
+		}
+    	
+    	// For each created AttrRange, create a histogram
+    	for(AttrRange ar : attrRanges) {
+    		if(ar.type == Type.STRING_TYPE) {
+    			histograms.add(new StringHistogram(NUM_HIST_BINS));
+    		} else {
+    			histograms.add(new IntHistogram(NUM_HIST_BINS, ar.min, ar.max));
+    		}
+    	}
+    }
+    
+    /*
+     * Scans through the tuples of the TableStats's tuples to populate the histograms,
+     * modifying the state of the histograms structure
+     */
+    private void populateHistograms(int tableid) {
+    	DbFile table = Database.getCatalog().getDatabaseFile(tableid);
+    	
+    	// Fetch the TupleDesc and set up the structure to hold the stats
+    	TupleDesc desc = table.getTupleDesc();
+    	int tupleSize = desc.numFields();
+    	
+    	// Get an iterator over the table's tuples
+    	DbFileIterator iter = table.iterator(tid);
+    	
+    	// Add the values to the histograms
+    	try {
+			while(iter.hasNext()) {
+				Tuple tup = iter.next();
+				for(int i=0; i<tupleSize; i++) {
+					Type fType = tup.getField(i).getType();
+					if(fType == Type.INT_TYPE) {
+						IntHistogram hist = (IntHistogram) histograms.get(i);
+						int value = (int) tup.getField(i).hashCode();
+						hist.addValue(value);
+						histograms.set(i, hist);
+					} else {
+						StringHistogram hist = (StringHistogram) 
+											   histograms.get(i);
+						String value = (String) tup.getField(i).toString();
+						hist.addValue(value);
+						histograms.set(i, value);
+					}
+				}
+				
+			}
+		} catch (NoSuchElementException | DbException
+				| TransactionAbortedException e) {
+			System.out.println("Failed to add values to histogram from table "
+							   + "in populateHistograms " + tableid);
+			e.printStackTrace();
+		}
+    }
+    
     /**
      * Estimates the cost of sequentially scanning the file, given that the cost
      * to read a page is costPerPageIO. You can assume that there are no seeks
