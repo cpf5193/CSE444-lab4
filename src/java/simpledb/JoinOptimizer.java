@@ -226,7 +226,6 @@ public class JoinOptimizer {
 
         // Create the actual subset using the BitSets for the given size
     	Set<BitSet> bitSets = sets.get(size);
-    	int bitPos = 0;
     	Iterator<BitSet> iter = bitSets.iterator();
     	for (int i=0; i<bitSets.size(); i++) {
     		// Get the next BitSet to create a subset from
@@ -237,12 +236,6 @@ public class JoinOptimizer {
     		for (int j = bits.nextSetBit(0); j >= 0; j = bits.nextSetBit(j+1)) {
     		     newSet.add(v.get(j));
     		}
-    		
-//    		while(bitPos != -1) {
-//    			int nextSetIndex = bits.nextSetBit(bitPos);
-//    			newSet.add(v.get(nextSetIndex));
-//    			bitPos = nextSetIndex+1;
-//    		}
     		
     		// Add the subset to the return set
     		els.add(newSet);
