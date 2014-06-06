@@ -69,10 +69,8 @@ public class HeapFile implements DbFile {
         HeapPage p = null;
         try {
             fis = new FileInputStream(heapFile);
-            long skipped = fis.skip(pid.pageNumber() * BufferPool.PAGE_SIZE);
-        	long read = fis.read(buf);
-        	System.out.println("bytes skipped: " + skipped);
-        	System.out.println("bytes read: " + read);
+        	System.out.println("bytes skipped: " + fis.skip(pid.pageNumber() * BufferPool.PAGE_SIZE));
+        	System.out.println("bytes read: " + fis.read(buf));
             fis.close();
             p = new HeapPage((HeapPageId)pid, buf);
         } catch (IOException e) {
