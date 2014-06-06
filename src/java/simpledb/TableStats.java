@@ -191,8 +191,10 @@ public class TableStats {
         	DbFileIterator iter = table.iterator(tid);
         	try {
 				iter.open();
-			} catch (DbException | TransactionAbortedException e1) {
+			} catch (DbException e1) {
 				e1.printStackTrace();
+			} catch (TransactionAbortedException e) {
+				e.printStackTrace();
 			}
         	
         	// Add the values to the histograms
