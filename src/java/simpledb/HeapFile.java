@@ -69,13 +69,16 @@ public class HeapFile implements DbFile {
         HeapPage p = null;
         try {
             fis = new FileInputStream(heapFile);
-            fis.skip(pid.pageNumber() * BufferPool.PAGE_SIZE);
-            fis.read(buf);
+            long skipped = fis.skip(pid.pageNumber() * BufferPool.PAGE_SIZE);
+        	long read = fis.read(buf);
+        	System.out.println("bytes skipped: " + skipped);
+        	System.out.println("bytes read: " + read);
             fis.close();
             p = new HeapPage((HeapPageId)pid, buf);
         } catch (IOException e) {
         	System.out.println("Filename: " + heapFile.getAbsolutePath());
         	System.out.println("Page: " + pid.pageNumber());
+        	System.out.println("Tried to skip to: " + pid.pageNumber() * BufferPool.PAGE_SIZE);
             throw new IllegalArgumentException("the page does not exist in this file");
         }
 
