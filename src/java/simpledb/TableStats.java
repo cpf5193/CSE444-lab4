@@ -135,14 +135,17 @@ public class TableStats {
     	}
     	
     	DbFileIterator iter = table.iterator(tid);
-    	try {
+		try {
 			iter.open();
-		} catch (DbException | TransactionAbortedException e1) {
+		} catch (DbException e1) {
+			e1.printStackTrace();
+		} catch (TransactionAbortedException e1) {
 			e1.printStackTrace();
 		}
     	
     	// Set the min/max for each attribute
-    	try {
+		
+		try {
 			while(iter.hasNext()) {
 				Tuple tup = iter.next();
 				for(int i=0; i<tupleSize; i++) {;
@@ -155,10 +158,11 @@ public class TableStats {
 					attrRanges.set(i, range);
 				}
 			}
-		} catch (NoSuchElementException | DbException
-				| TransactionAbortedException e) {
-			System.out.println("Failed to get next tuple from table" +
-					           " in createHistograms" + tableid);
+		} catch (NoSuchElementException e) {
+			e.printStackTrace();
+		} catch (DbException e) {
+			e.printStackTrace();
+		} catch (TransactionAbortedException e) {
 			e.printStackTrace();
 		}
     	
@@ -192,32 +196,33 @@ public class TableStats {
 			}
         	
         	// Add the values to the histograms
-        	try {
-    			while(iter.hasNext()) {
-    				Tuple tup = iter.next();
-    				for(int i=0; i<tupleSize; i++) {
-    					Type fType = tup.getField(i).getType();
-    					if(fType == Type.INT_TYPE) {
-    						IntHistogram hist = (IntHistogram) histograms.get(i);
-    						int value = (int) tup.getField(i).hashCode();
-    						hist.addValue(value);
-    						histograms.set(i, hist);
-    					} else {
-    						StringHistogram hist = (StringHistogram) 
-    											   histograms.get(i);
-    						String value = (String) tup.getField(i).toString();
-    						hist.addValue(value);
-    						histograms.set(i, hist);
-    					}
-    				}
-    				
-    			}
-    		} catch (NoSuchElementException | DbException
-    				| TransactionAbortedException e) {
-    			System.out.println("Failed to add values to histogram from table " +
-    							    "in populateHistograms " + tableid);
-    			e.printStackTrace();
-    		}
+			try {
+				while(iter.hasNext()) {
+					Tuple tup = iter.next();
+					for(int i=0; i<tupleSize; i++) {
+						Type fType = tup.getField(i).getType();
+						if(fType == Type.INT_TYPE) {
+							IntHistogram hist = (IntHistogram) histograms.get(i);
+							int value = (int) tup.getField(i).hashCode();
+							hist.addValue(value);
+							histograms.set(i, hist);
+						} else {
+							StringHistogram hist = (StringHistogram) 
+												   histograms.get(i);
+							String value = (String) tup.getField(i).toString();
+							hist.addValue(value);
+							histograms.set(i, hist);
+						}
+					}
+					
+				}
+			} catch (NoSuchElementException e) {
+				e.printStackTrace();
+			} catch (DbException e) {
+				e.printStackTrace();
+			} catch (TransactionAbortedException e) {
+				e.printStackTrace();
+			}
         }
     /**
      * Estimates the cost of sequentially scanning the file, given that the cost
