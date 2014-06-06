@@ -55,7 +55,7 @@ public class TupleDesc implements Serializable {
         	}
         	
         	public TDItem next(){
-        		return items[current++];
+        		return items[++current];
         	}
         	
         	public void remove() throws UnsupportedOperationException{

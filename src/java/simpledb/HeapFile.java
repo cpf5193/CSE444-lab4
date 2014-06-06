@@ -67,45 +67,15 @@ public class HeapFile implements DbFile {
     	byte[] buf = new byte[BufferPool.PAGE_SIZE];
         FileInputStream fis = null;
         HeapPage p = null;
-            try {
-				fis = new FileInputStream(heapFile);
-			} catch (FileNotFoundException e) {
-				System.out.println("Failed to create FileInputStream for " +
-						"heapFile " + heapFile.getAbsolutePath());
-				e.printStackTrace();
-			}
-        	try {
-				fis.skip(pid.pageNumber() * BufferPool.PAGE_SIZE);
-			} catch (IOException e) {
-				System.out.println("Failed to skip to" +
-						pid.pageNumber()*BufferPool.PAGE_SIZE);
-				e.printStackTrace();
-			}
-        	try {
-				fis.read(buf);
-			} catch (IOException e) {
-				System.out.println("Failed to read from file " 
-						+ heapFile.getAbsolutePath());
-				e.printStackTrace();
-			}
-            try {
-				fis.close();
-			} catch (IOException e) {
-				System.out.println("Failed to close " + heapFile.getAbsolutePath());
-				e.printStackTrace();
-			}
-            try {
-				p = new HeapPage((HeapPageId)pid, buf);
-			} catch (IOException e) {
-				System.out.println("Failed to create new page for " + pid);
-				e.printStackTrace();
-			}
-//        } catch (IOException e) {
-//        	System.out.println("Filename: " + heapFile.getAbsolutePath());
-//        	System.out.println("Page: " + pid.pageNumber());
-//        	System.out.println("Tried to skip to: " + pid.pageNumber() * BufferPool.PAGE_SIZE);
-//            throw new IllegalArgumentException("the page does not exist in this file");
-//        }
+        try {
+            fis = new FileInputStream(heapFile);
+            fis.skip(pid.pageNumber() * BufferPool.PAGE_SIZE);
+            fis.read(buf);
+            fis.close();
+            p = new HeapPage((HeapPageId)pid, buf);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("the page does not exist in this file");
+        }
 
         return p;
     }

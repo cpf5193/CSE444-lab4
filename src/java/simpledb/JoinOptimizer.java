@@ -15,7 +15,9 @@ import simpledb.Predicate.Op;
 public class JoinOptimizer {
     LogicalPlan p;
     Vector<LogicalJoinNode> joins;
-
+    HashMap<Integer, Set<BitSet>> sets;
+    boolean setsCreated;
+    
     /**
      * Constructor
      * 
@@ -27,6 +29,8 @@ public class JoinOptimizer {
     public JoinOptimizer(LogicalPlan p, Vector<LogicalJoinNode> joins) {
         this.p = p;
         this.joins = joins;
+        sets = new HashMap<Integer, Set<BitSet>>();
+        setsCreated = false;
     }
 
     /**
@@ -207,25 +211,106 @@ public class JoinOptimizer {
     @SuppressWarnings("unchecked")
     public <T> Set<Set<T>> enumerateSubsets(Vector<T> v, int size) {
         Set<Set<T>> els = new HashSet<Set<T>>();
-        els.add(new HashSet<T>());
-        // Iterator<Set> it;
-        // long start = System.currentTimeMillis();
 
-        for (int i = 0; i < size; i++) {
-            Set<Set<T>> newels = new HashSet<Set<T>>();
-            for (Set<T> s : els) {
-                for (T t : v) {
-                    Set<T> news = (Set<T>) (((HashSet<T>) s).clone());
-                    if (news.add(t))
-                        newels.add(news);
-                }
-            }
-            els = newels;
-        }
+        // For speedup, we create BitSets for all combinations of bits
+        // from 1 up to 2^(v.size())-1 on the first call to enumerateSubsets,
+        // and use the number of ones that are set in the BitSet to determine
+        // the size that this BitMap is a combination for, adding it to that
+        // size's slot. We build up sets of these BitSets for each size, 
+        // so that on subsequent lookups, we already have the set of BitSets
+        // to return.
 
-        return els;
+        // If this is the first time, create the subset BitSets
+        if (!setsCreated)
+        	createSets(v, size);
 
+        // Create the actual subset using the BitSets for the given size
+    	Set<BitSet> bitSets = sets.get(size);
+    	int bitPos = 0;
+    	Iterator<BitSet> iter = bitSets.iterator();
+    	for (int i=0; i<bitSets.size(); i++) {
+    		// Get the next BitSet to create a subset from
+    		BitSet bits = (BitSet) iter.next();
+    		
+    		// Create an actual subset from the subset BitSet
+    		Set<T> newSet = new HashSet<T>();
+    		for (int j = bits.nextSetBit(0); j >= 0; j = bits.nextSetBit(j+1)) {
+    		     newSet.add(v.get(j));
+    		}
+    		
+//    		while(bitPos != -1) {
+//    			int nextSetIndex = bits.nextSetBit(bitPos);
+//    			newSet.add(v.get(nextSetIndex));
+//    			bitPos = nextSetIndex+1;
+//    		}
+    		
+    		// Add the subset to the return set
+    		els.add(newSet);
+    	}
+    	return els;
+//        
+//        for (int i = 0; i < size; i++) {
+//            Set<Set<T>> newels = new HashSet<Set<T>>();
+//            for (Set<T> s : els) {
+//                for (T t : v) {
+//                    Set<T> news = (Set<T>) (((HashSet<T>) s).clone());
+//                    if (news.add(t))
+//                        newels.add(news);
+//                }
+//            }
+//            els = newels;
+//        }
     }
+    
+    private <T> void createSets(Vector<T> v, int size) {
+        // Initialize sets for each size
+        for (int i=1; i<=v.size(); i++) {
+        	sets.put(i, new HashSet<BitSet>());
+        }
+        
+        // Find the largest number represented by a BitSet
+        // of all 1's of size v.size() e.g. 11111 for v.size() = 5
+        long maxBitSetVal = (long)Math.pow(2, v.size())-1;
+        BitSet bits;
+        
+        // Use the fact that we need all combinations of positions,
+        // which can be represented as bit strings, to create the
+        // appropriate BitSets, organizing them by size
+        for (long j=1; j<=maxBitSetVal; j++) {
+        	// Create a BitSet from this long
+        	bits = convertLongToBitset(j);
+        	
+        	// Calculate the number of bits set in this long
+        	int setBits = Long.bitCount(j);
+        	
+        	// Add the new BitSet to the map
+        	if (sets.containsKey(setBits)) {
+        		// Map already contains a set for this size, add to it
+        		Set<BitSet> temp = sets.get(setBits);
+        		temp.add(bits);
+        		sets.put(setBits, temp);
+        	} else {
+        		// No set exists for this size yet, create new entry
+        		Set<BitSet> newSet = new HashSet<BitSet>();
+        		newSet.add(bits);
+        		sets.put(setBits, newSet);
+        	}
+        }
+        setsCreated = true;
+    }
+    
+    private static BitSet convertLongToBitset(long value) {
+        BitSet bits = new BitSet();
+        int index = 0;
+        while (value != 0L) {
+          if (value % 2L != 0) {
+            bits.set(index);
+          }
+          ++index;
+          value = value >>> 1;
+        }
+        return bits;
+      }
 
     /**
      * Compute a logical, reasonably efficient join on the specified tables. See
@@ -259,10 +344,34 @@ public class JoinOptimizer {
     	// some code goes here
     	PlanCache cache = new PlanCache();
     	
-    	// For each join size up to the number of joins
-    	for (int i=1; i<=joins.size(); i++) {
-    		// For each subset of size i calculate the best subplan and store
-    		// in the cache
+//    	// For each join size up to the number of joins
+//    	for (int i=1; i<=joins.size(); i++) {
+//    		// For each subset of size i calculate the best subplan and store
+//    		// in the cache
+//		  for (BitSet bitset : enumerateSubsets(joins, i)) {
+//		  	 CostCard bestPlan = new CostCard();
+//		    bestPlan.cost = Double.MAX_VALUE;
+//		    CostCard cc;
+//		    for (int j=0; j<bitset.size(); j++) {
+//		    	if(bitset.get(j)) {
+//		    	  // this element is part of the set
+//		    	  cc = computeCostAndCardOfSubplan(stats, filterSelectivities,
+//		    		   	  joins.get(j), subset, bestPlan.cost, cache);
+//		    	  // If an order was found
+//		 		  if (cc != null) {
+//		 	      	// Set new best plan if applicable
+//		 		  	if (cc.cost < bestPlan.cost) {
+//		 				bestPlan = cc;
+//		 		  	}
+//		 		  	cache.addPlan(subset, bestPlan.cost, bestPlan.card,
+//		 		    				bestPlan.plan);
+//		 	      	}
+//		    	}
+//		    }
+//		  }
+    		 
+		// For each join size up to the number of joins
+    	for (int i=1; i<=joins.size(); i++) {	
     		for (Set<LogicalJoinNode> subset : enumerateSubsets(joins, i)) {
     			CostCard bestPlan = new CostCard();
     			bestPlan.cost = Double.MAX_VALUE;
