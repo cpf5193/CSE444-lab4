@@ -207,7 +207,7 @@ public class TableStats {
     											   histograms.get(i);
     						String value = (String) tup.getField(i).toString();
     						hist.addValue(value);
-    						histograms.set(i, value);
+    						histograms.set(i, hist);
     					}
     				}
     				
