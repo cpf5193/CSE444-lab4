@@ -255,10 +255,71 @@ public class JoinOptimizer {
 
         // See the Lab 4 writeup for some hints as to how this function
         // should work.
+    	
+/*1. j = set of join nodes
+2. for (i in 1...|j|):  // First find best plan for single join, then for two joins, etc. 
+3.     for s in {all length i subsets of j} // Looking at a concrete subset of joins
+4.       bestPlan = {}  // We want to find the best plan for this concrete subset 
+5.       for s' in {all length i-1 subsets of s} 
+6.            subplan = optjoin(s')   // Look-up in the cache the best query plan for s but with one relation missing
+7.            plan = best way to join (s-s') to subplan  // Now find the best plan to extend s' by one join to get s
+8.            if (cost(plan) < cost(bestPlan))
+9.               bestPlan = plan // Update the best plan for computing s
+10.      optjoin(s) = bestPlan
+11. return optjoin(j)*/
+    	
+    	
+    	/*Given a subset of joins (joinSet), and a join to remove from this set (joinToRemove), 
+    	 * this method computes the best way to join joinToRemove to joinSet - {joinToRemove}. 
+    	 * It returns this best method in a CostCard object, which includes the cost, cardinality, 
+    	 * and best join ordering (as a vector). computeCostAndCardOfSubplan may return null, 
+    	 * if no plan can be found (because, for example, there is no linear join that is possible),
+    	 *  or if the cost of all plans is greater than the bestCostSoFar argument. The method uses
+    	 *   a cache of previous joins called pc (optjoin in the psuedocode above) to quickly lookup
+    	 *    the fastest way to join joinSet - {joinToRemove}. The other arguments 
+    	 *    (stats and filterSelectivities) are passed into the orderJoins method*/
 
-        // some code goes here
-        //Replace the following
-        return joins;
+    	// some code goes here
+    	PlanCache cache = new PlanCache();
+    	
+    	// For each join size up to the number of joins
+    	for (int i=1; i<=joins.size(); i++) {
+    		// For each subset of size i calculate the best subplan and store
+    		// in the cache
+    		for (Set<LogicalJoinNode> subset : enumerateSubsets(joins, i)) {
+    			CostCard bestPlan = new CostCard();
+    			bestPlan.cost = Double.MAX_VALUE;
+    			CostCard cc;
+    			for (LogicalJoinNode toRemove : subset) {
+    				// Get the best subplan for joining toRemove with subset
+    				cc = computeCostAndCardOfSubplan(stats, filterSelectivities, 
+    						toRemove, subset, bestPlan.cost, cache);
+    				// If an order was found
+    				if (cc != null) {
+    					// Set new best plan if applicable
+    					if (cc.cost < bestPlan.cost) {
+    						bestPlan = cc;
+    					}
+    					cache.addPlan(subset, bestPlan.cost, bestPlan.card,
+    								  bestPlan.plan);
+    				}
+    			}
+    		}
+    	}
+
+    	// Now create the return vector from the cache's best plan
+    	Set<LogicalJoinNode> joinSet = new HashSet<LogicalJoinNode>();
+    	joinSet.addAll(joins);
+    	
+    	Vector<LogicalJoinNode> resultVector = cache.getOrder(joinSet);
+    	
+    	// Do printing if specified in parameter
+    	if (explain) {
+    		printJoins(resultVector, cache, stats, filterSelectivities);
+    	}
+    	
+    	// Return best plan from the cache
+    	return resultVector;
     }
 
     // ===================== Private Methods =================================
