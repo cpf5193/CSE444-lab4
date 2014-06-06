@@ -74,6 +74,8 @@ public class HeapFile implements DbFile {
             fis.close();
             p = new HeapPage((HeapPageId)pid, buf);
         } catch (IOException e) {
+        	System.out.println("Filename: " + heapFile.getAbsolutePath());
+        	System.out.println("Page: " + pid.pageNumber());
             throw new IllegalArgumentException("the page does not exist in this file");
         }
 
